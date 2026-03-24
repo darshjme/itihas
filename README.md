@@ -4,20 +4,15 @@
 
 # agent-log
 
-**Structured JSON logging for LLM agents. Zero external dependencies.**
+**Structured JSON logging for LLM agents — zero dependencies.**
 
-[![PyPI](https://img.shields.io/pypi/v/agent-log?color=blue)](https://pypi.org/project/agent-log/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Zero deps](https://img.shields.io/badge/dependencies-zero-brightgreen)](pyproject.toml)
+[![PyPI version](https://img.shields.io/pypi/v/agent-log?color=blue&style=flat-square)](https://pypi.org/project/agent-log/) [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square)](https://python.org) [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE) [![Tests](https://img.shields.io/badge/tests-passing-brightgreen?style=flat-square)](#)
 
 ---
 
 ## The Problem
 
-Production LLM agents fail silently. Without structured json logging, you get undefined behaviour at scale — race conditions, lost state, cascading failures, and no way to debug what went wrong.
-
-`agent-log` gives you a production-ready structured json logging primitive with a clean API, tested edge cases, and zero configuration.
+Without structured logging, debugging distributed agents means grepping unstructured text — slow, brittle, and impossible to aggregate. A missing `context_id` field in production means hours of manual log archaeology per incident.
 
 ## Installation
 
@@ -25,88 +20,96 @@ Production LLM agents fail silently. Without structured json logging, you get un
 pip install agent-log
 ```
 
-Or from source:
-
-```bash
-git clone https://github.com/darshjme/agent-log.git
-cd agent-log
-pip install -e .
-```
-
 ## Quick Start
 
 ```python
-from agent_log import *  # see API reference below
+from agent_log import LogHandler, AgentLogger, InMemoryHandler
 
-# See examples/ directory for complete working examples
+# Initialise
+instance = LogHandler(name="my_agent")
+
+# Use
+# see API reference below
+print(result)
 ```
 
 ## API Reference
 
-The main classes and functions are defined in `agent_log/__init__.py`.
+### `LogHandler`
 
-Key exports: `AgentLogger · correlation IDs · InMemoryHandler · bind/filter`
+```python
+class LogHandler(ABC):
+    """Base handler; subclasses implement emit()."""
+    def __init__(self, level: str = "DEBUG") -> None:
+    def level(self) -> str:
+    def level(self, value: str) -> None:
+    def handle(self, record: LogRecord) -> None:
+        """Pass *record* to emit() if its level meets the threshold."""
+```
 
-All classes follow a consistent interface:
-- Instantiate with sensible defaults
-- Compose with other arsenal libraries
-- Zero external dependencies required
+### `AgentLogger`
 
-See the source code and `tests/` directory for verified usage examples.
+```python
+class AgentLogger:
+    """
+    def __init__(
+    def add_handler(self, handler: LogHandler) -> None:
+    def remove_handler(self, handler: LogHandler) -> None:
+    def bind(self, **fields) -> "AgentLogger":
+        """Return a new logger with *fields* always attached to every record."""
+```
+
+### `InMemoryHandler`
+
+```python
+class InMemoryHandler(LogHandler):
+    """Stores up to *max_size* records in memory."""
+    def __init__(self, level: str = "DEBUG", max_size: int = 1000) -> None:
+    def records(self) -> list[LogRecord]:
+        """All stored records (read-only view)."""
+    def emit(self, record: LogRecord) -> None:
+    def filter(
+```
+
 
 ## How It Works
 
+### Flow
+
 ```mermaid
 flowchart LR
-    A[Agent Task] --> B[agent-log]
-    B --> C{Decision}
-    C -->|success| D[✅ Result]
-    C -->|failure| E[⚠️ Handle]
-    E --> B
-
-    style B fill:#161b22,stroke:#1f6feb,stroke-width:2,color:#1f6feb
-    style D fill:#1a3320,stroke:#238636,color:#3fb950
-    style E fill:#3d1a1a,stroke:#f85149,color:#f85149
+    A[User Code] -->|create| B[LogHandler]
+    B -->|configure| C[AgentLogger]
+    C -->|execute| D{Success?}
+    D -->|yes| E[Return Result]
+    D -->|no| F[Error Handler]
+    F --> G[Fallback / Retry]
+    G --> C
 ```
+
+### Sequence
 
 ```mermaid
 sequenceDiagram
-    participant Agent
-    participant AgentLog as agent-log
-    participant Output
+    participant App
+    participant LogHandler
+    participant AgentLogger
 
-    Agent->>AgentLog: initialize()
-    AgentLog-->>Agent: ready
-
-    loop Agent Run
-        Agent->>AgentLog: process(input)
-        AgentLog-->>Agent: result
-    end
-
-    Agent->>Output: deliver(result)
+    App->>+LogHandler: initialise()
+    LogHandler->>+AgentLogger: configure()
+    AgentLogger-->>-LogHandler: ready
+    App->>+LogHandler: run(context)
+    LogHandler->>+AgentLogger: execute(context)
+    AgentLogger-->>-LogHandler: result
+    LogHandler-->>-App: WorkflowResult
 ```
 
 ## Philosophy
 
-*Satyam vada* — speak truth. agent-log ensures every action is recorded truthfully.
+> The *Akashic records* hold all that has transpired; a structured log is their computational equivalent.
 
 ---
 
-## Part of the Arsenal
-
-`agent-log` is one of six production libraries for LLM agents:
-
-| Library | Purpose |
-|---------|---------|
-| [herald](https://github.com/darshjme/herald) | Semantic task routing |
-| [engram](https://github.com/darshjme/engram) | Agent memory |
-| [sentinel](https://github.com/darshjme/sentinel) | ReAct loop guards |
-| [verdict](https://github.com/darshjme/verdict) | Agent evaluation |
-| [agent-guardrails](https://github.com/darshjme/agent-guardrails) | Output validation |
-| [agent-observability](https://github.com/darshjme/agent-observability) | Tracing & metrics |
-
-→ [arsenal](https://github.com/darshjme/arsenal) — the complete stack
-
----
+*Part of the [arsenal](https://github.com/darshjme/arsenal) — production stack for LLM agents.*
 
 *Built by [Darshankumar Joshi](https://github.com/darshjme), Gujarat, India.*
